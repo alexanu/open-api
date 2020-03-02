@@ -130,9 +130,9 @@ def getFedRStates(county = None, output_type = None):
 
    
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
     
@@ -147,12 +147,14 @@ def getFedRStates(county = None, output_type = None):
       
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':        
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(defoult), df for data frame or raw for unparsed results.') 
     return output  
 
 
@@ -193,15 +195,15 @@ def getFedRSnaps(symbol = None, url = None, country = None, state = None, county
 
     Example
     -------
-    getFedRSnaps(symbol = 'AGEXMAK2A647NCEN', url = None, country = None, state = None, county = None, page_number = None, output_type = None)
+    getFedRSnaps(symbol = 'AGEXMAK2A647NCEN', url = None, country = None, state = None, county = None, output_type = None)
 
     getFedRSnaps(symbol = None, url = 'united states''/united-states/white-to-non-white-racial-dissimilarity-index-for-benton-county-ar-fed-data.html', country = None, state = None, county = None, page_number = None, output_type = None)
   
-    getFedRSnaps(symbol = None, url = None, country = 'united states', state = None, county = None, page_number = None, output_type = None)
+    getFedRSnaps(symbol = None, url = None, country = 'united states', state = None, county = None, output_type = None)
 
-    getFedRSnaps(symbol = None, url = None, country = None, state = 'tennessee', county = None, page_number = 5, output_type = None)
+    getFedRSnaps(symbol = None, url = None, country = None, state = 'tennessee', county = None, output_type = None)
 
-    getFedRSnaps(symbol = None, url = None, country = None, state = None, county = 'arkansas', page_number = 10, output_type = None)
+    getFedRSnaps(symbol = None, url = None, country = None, state = None, county = 'arkansas', output_type = None)
   
     """
  
@@ -233,9 +235,9 @@ def getFedRSnaps(symbol = None, url = None, country = None, state = None, county
         linkAPI += '?c=' + glob.apikey
     
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode()
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     
@@ -245,16 +247,18 @@ def getFedRSnaps(symbol = None, url = None, country = None, state = None, county
         maindf = pd.DataFrame(webResults, columns=names2)     
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':        
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(default) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
   
 
-def getFedRHistorical(symbol = None, output_type = None):
+def getFedRHistorical(symbol = None, page_number = None, output_type = None):
     """
     Get Historical data.
     =================================================================================
@@ -269,7 +273,10 @@ def getFedRHistorical(symbol = None, output_type = None):
     output_type: string.
              'dict'(default) for dictionary format output, 'df' for data frame,
              'raw' for list of dictionaries directly from the web. 
-
+    page_number: string.
+              each page gives up to 200 results, as there are too many results we can get results per page
+              for example:
+                  page_number = '70' 
     Notes
     -----
     A symbol is required. 
@@ -279,6 +286,8 @@ def getFedRHistorical(symbol = None, output_type = None):
     getFedRHistorical(symbol = 'racedisparity005007', output_type = None)
 
     getFedRHistorical(symbol = ['racedisparity005007', '2020ratio002013'], output_type = None)
+
+    getFedRHistorical(symbol ='T10YFF', page_number = '70', output_type = 'df')
     
     """
     try:
@@ -297,33 +306,47 @@ def getFedRHistorical(symbol = None, output_type = None):
             linkAPI +=  quote(symbol)
         else:    
             linkAPI += quote(",".join(symbol))
+
+    if page_number != None:
+        linkAPI +=  "/" + page_number
+    
     try:
         linkAPI += '?c=' + glob.apikey
+     
     except AttributeError:
-        raise LoginError('You need to do login before making any request') 
-
-    
+        raise LoginError('You need to do login before making any request')
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()        
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
-        raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
-    
-    if len(webResults) > 0:
-        names = ['symbol', 'date', 'value']
-        names2 = ['symbol', 'date', 'value']    
-        maindf = pd.DataFrame(webResults, columns=names2)    
-      
+        if code != 200:
+            print(urlopen(linkAPI).read().decode('utf-8'))
+        else: 
+            raise WebRequestError ('Something went wrong. Error code = ' + str(code))
+     
+    if code == 200:
+        try:
+            if len(webResults) > 0:
+                names = ['symbol', 'date', 'value']
+                names2 = ['symbol', 'date', 'value']    
+                maindf = pd.DataFrame(webResults, columns=names2)    
+            
+            else:
+                raise ParametersError ('No data available for the provided parameters.')
+            if output_type == None or output_type =='dict':
+                output = webResults
+            elif output_type == 'df':        
+                output = maindf
+            elif output_type == 'raw':        
+                output = webResults
+            else:      
+                raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
+            return output
+        except ValueError:
+            pass
     else:
-        raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
-        output = maindf
-    elif output_type == 'raw':        
-        output = webResults
-    else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
-    return output
+        return ''    
 
 
 def getFedRCounty(output_type = None):
@@ -366,9 +389,9 @@ def getFedRCounty(output_type = None):
 
     
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
     
@@ -377,10 +400,12 @@ def getFedRCounty(output_type = None):
       
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':       
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output     

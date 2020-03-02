@@ -95,7 +95,6 @@ def paramCheck (country, indicator):
         linkAPI += '/indicator/' + quote(",".join(indicator), safe='') 
     return linkAPI
 
-
 def checkCountryHistoricalRatings(country):
     linkAPI = 'https://api.tradingeconomics.com/ratings/historical/'       
     if type(country) is str:
@@ -126,7 +125,6 @@ def getHistoricalData(country = None, indicator = None, initDate= None, endDate=
     """
     Return historical information for specific country and indicator.
     =================================================================
-
     Parameters:
     -----------
     country: string or list.
@@ -142,15 +140,12 @@ def getHistoricalData(country = None, indicator = None, initDate= None, endDate=
     output_type: string.
              'dict'(default) for dictionary format output,
              'raw' for list of dictionaries without any parsing.
-
     Notes
     ----- 
-    At least one parameter must be provided.
-
+    Must choose a country and an indicator.
     Example
     -------
     getHistoricalData(country = 'United States', indicator = 'Imports', initDate = '2011-01-01', endDate = '2016-01-01')
-
     getHistoricalData(country = ['United States', 'china'], indicator = ['Imports','Exports'], initDate = '2011-01-01', endDate = '2016-01-01')
     """
     try:
@@ -160,13 +155,13 @@ def getHistoricalData(country = None, indicator = None, initDate= None, endDate=
     else:
         ssl._create_default_https_context = _create_unverified_https_context
 
-    if type(country) is str or type(indicator) is str: 
+    if type(country) is str and type(indicator) is str: 
         linkAPI = 'https://api.tradingeconomics.com/historical/country/' + quote(country)  + '/indicator/' + quote(indicator) 
     else:
         linkAPI = paramCheck(country, indicator)
         
     if initDate == None and endDate == None:
-        minDate = [(datetime.now() - relativedelta(years=10)).strftime('%Y-%m-%d') ]
+        minDate = [(datetime.now() - relativedelta(years=15)).strftime('%Y-%m-%d') ]
         linkAPI = fn.finalLink(linkAPI, minDate) 
     if initDate == None and (endDate is not None): 
         raise DateError('initDate value is missing') 
@@ -199,52 +194,67 @@ def getHistoricalData(country = None, indicator = None, initDate= None, endDate=
         raise LoginError('You need to do login before making any request')
     
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
-        raise WebRequestError ('Something went wrong. Error code = ' + str(code))
-   
-    if len(webResults) > int(0):
-        results = {'dates': [d['DateTime'] for d in webResults],
-                    'values': [d[u'Value'] for d in webResults]}
-        if (type(country)== str and type(indicator) == str):
-            results = parseData(results)
-        else:
-            results = multiParams(webResults)
+        if code != 200:
+            print(urlopen(linkAPI).read().decode('utf-8'))
+        else: 
+            raise WebRequestError ('Something went wrong. Error code = ' + str(code))
+    if code == 200:
+        try:
+          
+            if len(webResults) > int(0):
+                results = {'dates': [d['DateTime'] for d in webResults],
+                            'values': [d[u'Value'] for d in webResults],
+                            }
+                          
+                          
+                if (type(country)== str and type(indicator) == str):
+                    results = parseData(results)
+                else:
+                    results = multiParams(webResults)
+                   
+            else:
+                raise ParametersError ('No data available for the provided parameters.')
+            
+            if output_type == None or output_type =='dict':
+                output = webResults
+            elif output_type == 'df': 
+                output= results = pd.DataFrame(webResults) 
+            elif output_type == 'raw':        
+                output = webResults
+            else:       
+                raise ParametersError ('output_type options : dict(default) for dictionary or raw for unparsed results.')
+            return output
+        except ValueError:
+            pass
     else:
-        raise ParametersError ('No data available for the provided parameters.')  
-    if output_type == None or output_type =='dict':        
-        output = results
-    elif output_type == 'raw':        
-        output = webResults
-    else:       
-        raise ParametersError ('output_type options : dict(defoult) for dictionary or raw for unparsed results.')
-    return output
+        return ''   
 
-def getHistoricalRatings(country = None, rating = None, output_type = None):
+def getHistoricalRatings(country = None, rating = None, initDate = None, endDate=None, output_type = None):
     """
     Return historical information for specific country.
     =================================================================
-
     Parameters:
     -----------
     country: string or list.
              String to get data for one country. List of strings to get data for
              several countries. For example, country = ['United States', 'Australia'].
         output_type: string.
-             'dict'(default) for dictionary format output,
+             'df'(default) for dictionary format output,
              'raw' for list of dictionaries without any parsing.
-
     Notes
     ----- 
     Without credentials only sample data will be provided.
-
     Example
     -------
     getHistoricalRatings(country = 'United States', rating = None)
-
     getHistoricalRatings(country = ['United States', 'United Kingdom'], rating = None)
+    getHistoricalRatings(country = 'United States', initDate ='2011-01-01')
+    getHistoricalRatings(country = 'United States', initDate ='2011-01-01', endDate = '2012-01-01')
+    
     """
     try:
         _create_unverified_https_context = ssl._create_unverified_context
@@ -266,30 +276,43 @@ def getHistoricalRatings(country = None, rating = None, output_type = None):
         linkAPI = 'https://api.tradingeconomics.com/ratings/historical/united%20states'   
     else:
         linkAPI = linkAPI
+    if (initDate is not None) and (endDate == None):
+        linkAPI = checkCountryHistoricalRatings(country) + "/" + initDate
+    elif (initDate is not None) and (endDate is not None):
+        linkAPI = checkCountryHistoricalRatings(country) + "/" + initDate + "/" + endDate
     try:
         linkAPI += '?c=' + glob.apikey
     except AttributeError:
         raise LoginError('You need to do login before making any request')
-    
+   
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
-        raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
-    
-    if len(webResults) > 0:
-        names = ['country','date', 'agency', 'rating', 'outlook']
-        names2 = ['Country','Date', 'Agency', 'Rating', 'Outlook']    
-        maindf = pd.DataFrame(webResults, columns=names2)    
-      
+        if code != 200:
+            print(urlopen(linkAPI).read().decode('utf-8'))
+        else: 
+            raise WebRequestError ('Something went wrong. Error code = ' + str(code))
+    if code == 200:
+        try:            
+            if len(webResults) > 0:
+                names = ['country','date', 'agency', 'rating', 'outlook']
+                names2 = ['Country','Date', 'Agency', 'Rating', 'Outlook']    
+                maindf = pd.DataFrame(webResults, columns=names2)    
+            
+            else:
+                raise ParametersError ('No data available for the provided parameters.')
+            if output_type == None or output_type =='dict':
+                output = webResults
+            elif output_type == 'df':        
+                output = maindf     
+            elif output_type == 'raw':        
+                output = webResults
+            else:      
+                raise ParametersError ('output_type options : df(default) for data frame or raw for unparsed results.') 
+            return output
+        except ValueError:
+            pass
     else:
-        raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
-        output = maindf
-    elif output_type == 'raw':        
-        output = webResults
-    else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
-    return output
-  
+        return ''     

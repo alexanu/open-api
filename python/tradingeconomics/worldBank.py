@@ -92,9 +92,9 @@ def getWBCategories(category = None, page_number = None, output_type = None):
 
     Example
     -------
-    getWBCategories(category = None, page_number = None, output_type = None)
+    getWBCategories(category = None, output_type = None)
 
-    getWBCategories(category = ['education', 'agriculture'], page_number =3, output_type = None)
+    getWBCategories(category = ['education', 'agriculture'], output_type = None)
     """          
     url = ''
     try:
@@ -112,19 +112,19 @@ def getWBCategories(category = None, page_number = None, output_type = None):
         linkAPI = 'https://api.tradingeconomics.com/worldBank/categories'
     else:
         linkAPI = 'https://api.tradingeconomics.com/worldBank/category/' + quote(str(category), safe='')
-     
+    
     if page_number != None:
         linkAPI = checkPageNumber(linkAPI, page_number)
-       
+     
     try:
         linkAPI += '?c=' + glob.apikey
     except AttributeError:
         raise LoginError('You need to do login before making any request')
-   
+    
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
     
@@ -132,18 +132,20 @@ def getWBCategories(category = None, page_number = None, output_type = None):
         if category == None:
             names2 = ['category']
         else:
-            names = ['category', 'series_name', 'sub_category', 'sub_category2', 'sub_category3', 'title', 'long_defenition', 'short_defenition', 'source', 'general_comments', 'aggregation_method', 'url', 'organization', 'unit', 'verbose_unit', 'last_update']
-            names2 = ['category', 'series_name', 'sub_category', 'sub_category2', 'sub_category3', 'title', 'long_defenition', 'short_defenition', 'source', 'general_comments', 'aggregation_method', 'URL', 'organization', 'unit', 'verbose_unit', 'last_update']    
+            names = ['category', 'series_code', 'series_name', 'sub_category', 'sub_category2', 'sub_category3', 'title', 'long_defenition', 'short_defenition', 'source', 'general_comments', 'aggregation_method', 'url', 'organization', 'unit', 'verbose_unit', 'last_update']
+            names2 = ['category', 'series_code','series_name', 'sub_category', 'sub_category2', 'sub_category3', 'title', 'long_defenition', 'short_defenition', 'source', 'general_comments', 'aggregation_method', 'URL', 'organization', 'unit', 'verbose_unit', 'last_update']    
         maindf = pd.DataFrame(webResults, columns=names2)    
       
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':        
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
 
 def getWBIndicator(series_code = None, url = None, output_type = None):
@@ -192,27 +194,29 @@ def getWBIndicator(series_code = None, url = None, output_type = None):
         linkAPI = 'https://api.tradingeconomics.com/worldBank/indicator' + '?c=' + glob.apikey + '&s=' + quote(str(series_code), safe='')            
     elif url != None:
         linkAPI = 'https://api.tradingeconomics.com/worldBank/indicator' + '?c=' + glob.apikey + '&url=' + quote(str(url), safe='')
-    print (linkAPI)       
+         
    
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode()
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     
     if len(webResults) > int(0):
-        names = ['symbol', 'last', 'previous', 'previousDate', 'country', 'category', 'description', 'frequency', 'unit', 'title', 'url', 'lastUpdate']
-        names2 = ['symbol', 'last', 'previous', 'previousDate', 'country', 'category', 'description', 'frequency', 'unit', 'title', 'URL', 'lastUpdate']
+        names = ['symbol', 'last', 'date', 'previous', 'previousDate', 'country', 'category', 'description', 'frequency', 'unit', 'title', 'url', 'lastUpdate']
+        names2 = ['symbol', 'last', 'date', 'previous', 'previousDate', 'country', 'category', 'description', 'frequency', 'unit', 'title', 'URL', 'lastUpdate']
         maindf = pd.DataFrame(webResults, columns=names2)     
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':        
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(default) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
   
 def getWBCountry(country = None, page_number = None, output_type = None):
@@ -238,7 +242,7 @@ def getWBCountry(country = None, page_number = None, output_type = None):
 
     Example
     -------
-    getWBCountry(country = 'portugal', page_number = 3, output_type = None)
+    getWBCountry(country = 'portugal', output_type = None) # page_number is no longer needed!
     """ 
     linkAPI = 'https://api.tradingeconomics.com/worldBank/country/'          
     try:
@@ -262,9 +266,9 @@ def getWBCountry(country = None, page_number = None, output_type = None):
         raise LoginError('You need to do login before making any request')
     
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode()
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     
@@ -274,12 +278,14 @@ def getWBCountry(country = None, page_number = None, output_type = None):
         maindf = pd.DataFrame(webResults, columns=names2)     
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':         
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(default) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
 
 def getWBHistorical(series_code = None, output_type = None):
@@ -323,9 +329,9 @@ def getWBHistorical(series_code = None, output_type = None):
         linkAPI += '?c=' + glob.apikey + '&s=' + quote(str(series_code))   
     
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
     
@@ -336,12 +342,14 @@ def getWBHistorical(series_code = None, output_type = None):
       
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':         
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
   
     

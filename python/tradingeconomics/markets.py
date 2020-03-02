@@ -40,18 +40,17 @@ def checkPage(linkAPI, page):
 
 def checkCategory(linkAPI, category):
     if type(category) is str:
-        linkAPI += '&category=' + quote (category, safe='')
+        linkAPI += '?category=' + quote (category, safe='')
     else:
-        linkAPI += '&category=' + quote(",".join(category), safe="")
+        linkAPI += '?category=' + quote(",".join(category), safe="")
     return linkAPI
    
    
 def getMarketsData(marketsField, output_type=None):
     """
-    Returns a list of available commodities, currencies, indeces or 
+    Returns a list of available commodities, currencies, indexes or 
     bonds and their latest values.
     ==========================================================
-
     Parameters:
     -----------
     marketsField: string.
@@ -59,9 +58,8 @@ def getMarketsData(marketsField, output_type=None):
             'index' or 'bond' as options.
              
     output_type: string.
-             'df'(default) for data frame,
+             'dict'(default), 'df' for data frame,
              'raw' for list of unparsed data. 
-
     Example
     -------
     getMarketsData(marketsField = 'index')
@@ -73,46 +71,44 @@ def getMarketsData(marketsField, output_type=None):
     else:
         ssl._create_default_https_context = _create_unverified_https_context
         
-    fields =['commodities', 'currency', 'index', 'bonds']
+    fields =['commodities', 'currency', 'index', 'bond']
     if marketsField not in fields:
-        raise ParametersError ('Accepted values for marketsField are \'commodity\', \'currency\', \'index\' or \'bonds\'.')
+        raise ParametersError ('Accepted values for marketsField are \'commodity\', \'currency\', \'index\' or \'bond\'.')
     linkAPI = 'https://api.tradingeconomics.com/markets/' + quote(marketsField, safe='') 
     try:
         linkAPI += '?c=' + glob.apikey
     except AttributeError:
         raise LoginError('You need to do login before making any request')
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     if len(webResults) > 0:
-        if marketsField == 'bonds':
-            names = ['symbol','name', 'country', 'date', 'last', 'group','url','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','ydtchange','ydtpercentualchange','yesterday','lastweek','lastmonth','lastyear','startyear']
-            names2 = ['Symbol','Name', 'Country', 'Date', 'Last', 'Group','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear']
-        else:
-            names = ['symbol','ticker','name', 'country', 'date', 'last', 'group','url','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','ydtchange','ydtpercentualchange','yesterday','lastweek','lastmonth','lastyear','startyear']
-            names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Last', 'Group','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear']    
+  																							
+        names = ['symbol','ticker','name', 'country','Date', 'Last', 'Close', 'CloseDate', 'Group','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear','decimals', 'unit', 'frequency', 'lastupdate']    
+        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Last', 'Close', 'CloseDate', 'Group','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear','decimals', 'unit', 'frequency', 'LastUpdate']    
         maindf = pd.DataFrame()     
         for i in range(len(names)):
             names[i] =  [d[names2[i]] for d in webResults]
             maindf = pd.concat([maindf, pd.DataFrame(names[i], columns = [names2[i]])], axis = 1)
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':          
         output = maindf.dropna()
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(defoult), df for data frame or raw for unparsed results.') 
     return output
 
 def getMarketsBySymbol(symbols, output_type=None):
     """
     Returns a markets information for specific symbols.
     ==========================================================
-
     Parameters:
     -----------
     symbols: string or list.
@@ -120,9 +116,8 @@ def getMarketsBySymbol(symbols, output_type=None):
              several symbols. For example, symbols = ['aapl:us', 'indu:ind'].
              
     output_type: string.
-             'df'(default) for data frame,
+             'dict'(default), 'df' for data frame,
              'raw' for list of unparsed data. 
-
     Example
     -------
     getMarketsBySymbol(symbols = 'indu:ind')
@@ -145,31 +140,32 @@ def getMarketsBySymbol(symbols, output_type=None):
     except AttributeError:
         raise LoginError('You need to do login before making any request')
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     if len(webResults) > 0:
-        names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'marketcap','url','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','ydtchange','ydtpercentualchange','yesterday','lastweek','lastmonth','lastyear','startyear', 'isin', 'lastupdate']
-        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'MarketCap', 'URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'LastUpdate']    
+        names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'close', 'closedate','marketcap','URL','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','YTDchange','YTDpercentualchange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'lastupdate']    
+        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'Close', 'CloseDate','MarketCap','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'LastUpdate']    
         maindf = pd.DataFrame(webResults, columns=names2)     
 
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':         
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
 
 def getMarketsIntraday(symbols, initDate=None, endDate=None, output_type=None):
     """
     Returns a markets intraday information for specific symbols.
     ==========================================================
-
     Parameters:
     -----------
     symbols: string or list.
@@ -178,13 +174,10 @@ def getMarketsIntraday(symbols, initDate=None, endDate=None, output_type=None):
     
     initDate: string with format: YYYY-MM-DD.
              For example: '2011-01-01' 
-
     endDate: string with format: YYYY-MM-DD.    
-
     output_type: string.
-             'df'(default) for data frame,
+             'dict'(default), 'df' for data frame,
              'raw' for list of unparsed data. 
-
     Example
     -------
     getMarketsIntraday(symbols = 'indu:ind')
@@ -212,9 +205,9 @@ def getMarketsIntraday(symbols, initDate=None, endDate=None, output_type=None):
     
 
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     if len(webResults) > 0:
@@ -224,19 +217,20 @@ def getMarketsIntraday(symbols, initDate=None, endDate=None, output_type=None):
 
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':          
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
 
 def getMarketsPeers(symbols, output_type = None):
     """
     Returns a markets peers information for specific symbols.
     ==========================================================
-
     Parameters:
     -----------
     symbols: string or list.
@@ -244,9 +238,8 @@ def getMarketsPeers(symbols, output_type = None):
              several symbols. For example, symbols = ['aapl:us', 'indu:ind'].
              
     output_type: string.
-             'df'(default) for data frame,
+             'dict'(default), 'df' for data frame,
              'raw' for list of unparsed data. 
-
     Example
     -------
     getMarketsPeers(symbols = 'indu:ind')
@@ -269,31 +262,32 @@ def getMarketsPeers(symbols, output_type = None):
     except AttributeError:
         raise LoginError('You need to do login before making any request')
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     if len(webResults) > 0:
-        names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'marketcap','url','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','ydtchange','ydtpercentualchange','yesterday','lastweek','lastmonth','lastyear','startyear', 'isin', 'lastupdate']
-        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'MarketCap', 'URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'LastUpdate']    
+        names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'close', 'closedate','marketcap','URL','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','YTDchange','YTDpercentualchange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'lastupdate']    
+        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'Close', 'CloseDate','MarketCap','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'LastUpdate']    
         maindf = pd.DataFrame(webResults, columns=names2)     
 
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':          
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
 
 def getMarketsComponents(symbols, output_type = None):
     """
     Returns a stock market index components information for specific symbols.
     ==========================================================
-
     Parameters:
     -----------
     symbols: string or list.
@@ -301,9 +295,8 @@ def getMarketsComponents(symbols, output_type = None):
              several symbols. For example, symbols = ['aapl:us', 'indu:ind'].
              
     output_type: string.
-             'df'(default) for data frame,
+             'dict'(default), 'df' for data frame,
              'raw' for list of unparsed data. 
-
     Example
     -------
     getMarketsComponents(symbols = 'psi20:ind')
@@ -326,40 +319,40 @@ def getMarketsComponents(symbols, output_type = None):
     except AttributeError:
         raise LoginError('You need to do login before making any request')
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     if len(webResults) > 0:
-        names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'marketcap','url','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','ydtchange','ydtpercentualchange','yesterday','lastweek','lastmonth','lastyear','startyear', 'isin', 'lastupdate']
-        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'MarketCap', 'URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'LastUpdate']    
+        names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'close', 'closedate','marketcap','URL','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','YTDchange','YTDpercentualchange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'lastupdate']    
+        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'Close', 'CloseDate','MarketCap','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'LastUpdate']    
         maindf = pd.DataFrame(webResults, columns=names2)     
 
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':          
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
     return output
 
 def getMarketsSearch(country=None, category = None, page = None, output_type = None):    
     """
     Search for country, category and page number.
     ==========================================================
-
     Parameters:
     -----------
     symbols: string.
             String to get data for country and category. 
     
     output_type: string.
-             'df'(default) for data frame,
+             'dict'(default), 'df' for data frame,
              'raw' for list of unparsed data. 
-
     Example
     -------
     getMarketsSearch(country = 'japan', category = None, page = None, output_type = None)
@@ -379,41 +372,120 @@ def getMarketsSearch(country=None, category = None, page = None, output_type = N
         linkAPI = 'https://api.tradingeconomics.com/markets/search/' + quote(",".join(country), safe='') 
     else:   
         linkAPI = 'https://api.tradingeconomics.com/markets/search/' + quote(country, safe='')
+    if (category) is not None:    
+        linkAPI = checkCategory(linkAPI, category)       
+    if (page) is not None:
+        linkAPI = checkPage(linkAPI, page)
+    
+    try:
+        if (category)is not None:
+            linkAPI += '&c=' + glob.apikey
+        else:
+            linkAPI += '?c=' + glob.apikey
+    except AttributeError:
+        raise LoginError('You need to do login before making any request')
     
    
+    
+    
+    try:       
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
+        print(linkAPI)    
+    except ValueError:
+        if code != 200:
+            print(urlopen(linkAPI).read().decode('utf-8'))
+        else: 
+            raise WebRequestError ('Something went wrong. Error code = ' + str(code))
+    if code == 200:
+        try:  
+            if len(webResults) > 0:
+                																								                                                                                                              			
+                names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'close', 'closedate','marketcap','URL','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','YTDchange','YTDpercentualchange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'lastupdate']    
+                names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'Close', 'CloseDate','MarketCap','URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'frequency', 'LastUpdate']    
+                maindf = pd.DataFrame(webResults, columns=names2)     
+
+            else:
+                raise ParametersError ('No data available for the provided parameters.')
+            if output_type == None or output_type =='dict':
+                output = webResults
+            elif output_type == 'df':         
+                output = maindf
+            elif output_type == 'raw':        
+                output = webResults
+            else:      
+                raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
+            return output
+        except ValueError:
+            pass
+    else:
+        return ''
+
+
+def getMarketsForecasts(category=None, symbol=None,  output_type = None):
+    """
+    Returns a stock market forecast information for specific symbols and categories.
+    ================================================================================
+    Parameters:
+    -----------
+    symbol: string or list.
+            String to get data for symbol. List of strings to get data for
+             several symbols. For example, symbols = ['aapl:us', 'indu:ind'].
+    category: string.
+            String to get data by category.  
+            For example, category = 'index'         
+             
+    output_type: string.
+             'dict'(default), 'df' for data frame,
+             'raw' for list of unparsed data. 
+    Example
+    -------
+    getMarketsForecasts(category = 'bond')
+    getMarketsForecasts(symbol = ['psi20:ind', 'indu:ind'], output_type = 'df')
+    getMarketsForecasts(symbol =  'indu:ind', output_type = 'df')
+    """
+    try:
+        _create_unverified_https_context = ssl._create_unverified_context
+    except AttributeError:
+        pass
+    else:
+        ssl._create_default_https_context = _create_unverified_https_context    
+  
+    if type(symbol) is list: 
+        linkAPI = 'http://api.tradingeconomics.com/markets/forecasts' + '/symbol/' + quote(",".join(symbol), safe='') 
+             
+    else:  
+       linkAPI = 'http://api.tradingeconomics.com/markets/forecasts' + '/symbol/' + quote(str(symbol)) 
+    
+    if category is not None:
+        linkAPI = 'http://api.tradingeconomics.com/markets/forecasts/' + quote(category)
+       
+
     try:
         linkAPI += '?c=' + glob.apikey
     except AttributeError:
         raise LoginError('You need to do login before making any request')
     
-   
-    if (category) is not None:
-        linkAPI = checkCategory(linkAPI, category)
-    else:
-        linkAPI = checkCategory(linkAPI, category='index')
-    if (page) is not None:
-        linkAPI = checkPage(linkAPI, page)
-    else:
-        linkAPI = checkPage(linkAPI, page=1)
-    
     try:       
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
-        
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
         raise WebRequestError ('Something went wrong. Error code = ' + str(code))  
     if len(webResults) > 0:
-        names = ['symbol','ticker','name', 'country', 'date', 'type', 'decimals', 'last', 'marketcap','url','importance','dailychange','dailypercentualchange','weeklychange','weeklypercentualchange','monthlychange','monthlypercentualchange','yearlychange','yearlypercentualchange','ydtchange','ydtpercentualchange','yesterday','lastweek','lastmonth','lastyear','startyear', 'isin', 'lastupdate']
-        names2 = ['Symbol','Ticker','Name', 'Country', 'Date', 'Type', 'decimals', 'Last', 'MarketCap', 'URL','Importance','DailyChange','DailyPercentualChange','WeeklyChange','WeeklyPercentualChange','MonthlyChange','MonthlyPercentualChange','YearlyChange','YearlyPercentualChange','YTDChange','YTDPercentualChange','yesterday','lastWeek','lastMonth','lastYear','startYear', 'ISIN', 'LastUpdate']    
+        names = ['symbol','country', 'date', 'type','last', 'url','importance','forecast1','forecast2','forecast2','forecast4']
+        names2 = ['Symbol','Country', 'Date', 'Type','Last', 'Url','Importance','Forecast1','Forecast2','Forecast2','Forecast4']   
         maindf = pd.DataFrame(webResults, columns=names2)     
 
     else:
         raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
+    if output_type == None or output_type =='dict':
+        output = webResults
+    elif output_type == 'df':        
         output = maindf
     elif output_type == 'raw':        
         output = webResults
     else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
-    return output
+        raise ParametersError ('output_type options : dict(default), df for data frame or raw for unparsed results.') 
+    return output        

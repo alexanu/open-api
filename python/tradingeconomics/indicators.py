@@ -52,16 +52,11 @@ def checkIndic(indicators, linkAPI):
         linkAPI += '/' + quote(",".join(indicators), safe='')
     return linkAPI
 
-def checkRatings(rating, linkAPI):       
-    if type(rating) is str:
-        linkAPI += 'https://api.tradingeconomics.com/ratings/' + quote(rating, safe='')
-    else:
-        linkAPI += 'https://api.tradingeconomics.com/ratings/' + quote(",".join(rating), safe='')
-    return linkAPI    
+  
 
 def getResults(webResults, country):
-        names = ['country', 'category', 'latestvalue', 'latestvaluedate', 'source', 'unit', 'categorygroup', 'frequency', 'previousvalue', 'previousvaluedate']
-        names2 = ['Country', 'Category', 'LatestValue', 'LatestValueDate',  'Source', 'Unit', 'CategoryGroup', 'Frequency', 'PreviousValue', 'PreviousValueDate']
+        names = ['country', 'category', 'title', 'latestvalue', 'latestvaluedate', 'source', 'unit', 'url', 'categorygroup', 'adjustment', 'frequency','historicaldatasymbol', 'createdate', 'previousvalue', 'previousvaluedate']
+        names2 = ['Country', 'Category', 'Title', 'LatestValue', 'LatestValueDate',  'Source', 'Unit', 'URL', 'CategoryGroup', 'Adjustment', 'Frequency', 'HistoricalDataSymbol', 'CreateDate', 'PreviousValue', 'PreviousValueDate']
         maindf = pd.DataFrame() 
         
         for i in range(len(names)):
@@ -70,19 +65,11 @@ def getResults(webResults, country):
         maindf['Country'] =  maindf['Country'].map(lambda x: x.strip())
         return maindf 
 
-def getRatingResults(webResults, rating):
-        names = ['country', 'te', 'te_outlook', 'sp', 'sp_outlook', 'moodys', 'moodys_outlook', 'fitch', 'fitch_outlook', 'outlook']
-        names2 = ['Country','Te', 'Te_Outlook', 'Sp', 'Sp_Outlook', 'Moodys', 'Moodys_Outlook', 'Fitch', 'Fitch_Outlook', 'Outlook']
-        maindf = pd.DataFrame()  
-        for i in range(len(names)):  
-            names[i] = [d[names2[i]]  for d in webResults]
-            maindf = pd.concat([maindf, pd.DataFrame(names[i], columns = [names2[i]])], axis = 1) 
-        maindf['Rating'] =  maindf['Rating'].map(lambda x: x.strip())
-        return maindf
+
 
 def getUpdateResults(webResults, date):
-        names = ['historicalDataSymbol', 'lastUpdate']
-        names2 = ['HistoricalDataSymbol', 'LastUpdate']
+        names = ['country', 'category', 'historicalDataSymbol', 'lastUpdate']
+        names2 = ['Country', 'Category', 'HistoricalDataSymbol', 'LastUpdate']
         maindf = pd.DataFrame() 
         
         for i in range(len(names)):
@@ -97,7 +84,6 @@ def getIndicatorData(country = None, indicators = None, output_type = None):
     """
     Return a list of all indicators, indicators by country or country-indicator pair.
     =================================================================================
-
     Parameters:
     -----------
     country: string or list.
@@ -110,15 +96,12 @@ def getIndicatorData(country = None, indicators = None, output_type = None):
     output_type: string.
              'dict'(default) for dictionary format output, 'df' for data frame,
              'raw' for list of dictionaries directly from the web. 
-
     Notes
     -----
     All parameters are optional. Without parameters a list of all indicators will be provided. 
-
     Example
     -------
     getIndicatorData(country = 'United States', indicators = 'Imports', output_type = 'df')
-
     getIndicatorData(country = ['United States', 'Portugal'], indicators = ['Imports','Exports'])
     """
     try:
@@ -143,39 +126,46 @@ def getIndicatorData(country = None, indicators = None, output_type = None):
         raise LoginError('You need to do login before making any request')
 
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
-        raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
+        if code != 200:
+            print(urlopen(linkAPI).read().decode('utf-8'))
+        else: 
+            raise WebRequestError ('Something went wrong. Error code = ' + str(code))
+    if code == 200:
+        try:
 
-    if len(webResults) > 0:
-        if country == None:
-            print ('Without country indication only a list of available indicators will be returned...')
-            output = {'Category': [d['Category'] for d in webResults], 
-                        'CategoryGroup': [d['CategoryGroup'] for d in webResults]}
-            return pd.DataFrame(output)
-        else:
-            maindf = getResults(webResults, country)  
+            if len(webResults) > 0:
+                if country == None:
+                    print ('Without country indication only a list of available indicators will be returned...')
+                    output = {'Category': [d['Category'] for d in webResults], 
+                                'CategoryGroup': [d['CategoryGroup'] for d in webResults]}
+                    return pd.DataFrame(output)
+                else:
+                    maindf = getResults(webResults, country)  
+            else:
+                raise ParametersError ('No data available for the provided parameters.')
+
+            if output_type == None or output_type =='dict':
+                output = fn.out_type(maindf)
+            elif output_type == 'df': 
+                output = maindf
+            elif output_type == 'raw':
+                output = webResults
+            else:
+                raise ParametersError ('output_type options : df for data frame, dict(defoult) for dictionary by country, raw for results directly from web.')      
+            return output
+        except ValueError:
+            pass
     else:
-        raise ParametersError ('No data available for the provided parameters.')
-
-    if output_type == None or output_type =='dict':
-        output = fn.out_type(maindf)
-    elif output_type == 'df': 
-        output = maindf
-    elif output_type == 'raw':
-        output = webResults
-    else:
-        raise ParametersError ('output_type options : df for data frame, dict(defoult) for dictionary by country, raw for results directly from web.')      
-    return output
-
-  
-def getRatings(country=['united states', 'china'], rating = None, output_type='df'):
+        return ''   
+ 
+def getRatings(country=None, rating = None, output_type='df'):
     """
     Return a list of all countrys by rating.
     =================================================================================
-
     Parameters:
     -----------
     country: string or list.
@@ -184,15 +174,12 @@ def getRatings(country=['united states', 'china'], rating = None, output_type='d
         output_type: string.
              'dict'(default) for dictionary format output, 'df' for data frame,
              'raw' for list of dictionaries directly from the web. 
-
     Notes
     -----
     All parameters are optional. Without parameters a list of all indicators will be provided. 
-
     Example
     -------
     getRatings(country = 'United States', rating = None, output_type = 'df')
-
     getRatings(country = ['United States', 'Portugal'], rating = None, output_type = 'df')
     """
     try:
@@ -203,47 +190,56 @@ def getRatings(country=['united states', 'china'], rating = None, output_type='d
         ssl._create_default_https_context = _create_unverified_https_context
     
     if country == None:
-        linkAPI = 'https://api.tradingeconomics.com/ratings/'
+        linkAPI = 'https://api.tradingeconomics.com/ratings'
     else:
         linkAPI = checkCountryRatings(country)
-    
-    if rating == None:
-        linkAPI = linkAPI
-    else:
-        linkAPI = checkRatings(rating, linkAPI)
+    print(linkAPI)
+
     try:
         linkAPI += '?c=' + glob.apikey
     except AttributeError:
         raise LoginError('You need to do login before making any request')
-
+  
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
-        raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
+        if code != 200:
+            print(urlopen(linkAPI).read().decode('utf-8'))
+        else: 
+            raise WebRequestError ('Something went wrong. Error code = ' + str(code))
+    if code == 200:
+        try:
+            if len(webResults) > 0: 
+            
+            
+                names = ['country', 'te', 'te_outlook', 'sp', 'sp_outlook', 'moodys', 'moodys_outlook', 'fitch', 'fitch_outlook', 'outlook', "dbrs", "dbrs_outlook"]
+                names2 = ['Country','TE', 'TE_Outlook', 'SP', 'SP_Outlook', 'Moodys', 'Moodys_Outlook', 'Fitch', 'Fitch_Outlook', 'Outlook', "DBRS", "DBRS_Outlook"]    
+                maindf = pd.DataFrame(webResults, columns=names2) 
+                
+                
+            else:
+                raise ParametersError ('No data available for the provided parameters.')
+            if output_type == None or output_type =='dict':
+                output = fn.out_type(maindf)
+            elif output_type == 'df':       
+                output = maindf
+            elif output_type == 'raw':        
+                output = webResults
+            else:      
+                raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
+            return output
     
-    if len(webResults) > 0:
-        names = ['country', 'te', 'te_outlook', 'sp', 'sp_outlook', 'moodys', 'moodys_outlook', 'fitch', 'fitch_outlook', 'outlook']
-        names2 = ['Country','TE', 'TE_Outlook', 'SP', 'SP_Outlook', 'Moodys', 'Moodys_Outlook', 'Fitch', 'Fitch_Outlook', 'Outlook']    
-        maindf = pd.DataFrame(webResults, columns=names2)    
-      
+        except ValueError:
+            pass
     else:
-        raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
-        output = maindf
-    elif output_type == 'raw':        
-        output = webResults
-    else:      
-        raise ParametersError ('output_type options : df(defoult) for data frame or raw for unparsed results.') 
-    return output
-
+        return ''
 
 def getLatestUpdates(initDate = None, output_type = None):
     """
     Return a list of latest updates, and last updates by initial date.
     =================================================================================
-
     Parameters:
     -----------
         initDate:string or list.
@@ -252,17 +248,13 @@ def getLatestUpdates(initDate = None, output_type = None):
         output_type: string.
              'dict'(default) for dictionary format output, 'df' for data frame,
              'raw' for list of dictionaries directly from the web. 
-
     Notes
     -----
     Without parameters a list of latest updates will be provided. 
-
     Example
     -------
     getLatestUpdates(initDate = None, output_type = None)
-
     getLatestUpdates(initDate = '2018-08-15', output_type = None)
-
     """
     
     try:
@@ -289,24 +281,34 @@ def getLatestUpdates(initDate = None, output_type = None):
         raise LoginError('You need to do login before making any request')
 
     try:
-        code = urlopen(linkAPI)
-        code = code.getcode() 
-        webResults = json.loads(urlopen(linkAPI).read().decode('utf-8'))
+        response = urlopen(linkAPI)
+        code = response.getcode()
+        webResults = json.loads(response.read().decode('utf-8'))
     except ValueError:
-        raise WebRequestError ('Something went wrong. Error code = ' + str(code)) 
-    
-    if len(webResults) > 0:
-        names = ['historicalDataSymbol', 'lastUpdate']
-        names2 = ['HistoricalDataSymbol', 'LastUpdate']    
-        maindf = pd.DataFrame(webResults, columns=names2)    
-      
+        if code != 200:
+            print(urlopen(linkAPI).read().decode('utf-8'))
+        else: 
+            raise WebRequestError ('Something went wrong. Error code = ' + str(code))
+    if code == 200:
+        try:
+            
+            if len(webResults) > 0:
+                names = ['country', 'category', 'historicalDataSymbol', 'lastUpdate']
+                names2 = ['Country', 'Category', 'HistoricalDataSymbol', 'LastUpdate']   
+                maindf = pd.DataFrame(webResults, columns=names2)    
+            
+            else:
+                raise ParametersError ('No data available for the provided parameters.')
+            if output_type == None or output_type =='dict':
+                output = fn.out_type(maindf)
+            elif output_type == 'df':        
+                output = maindf
+            elif output_type == 'raw':        
+                output = webResults
+            else:      
+                raise ParametersError ('output_type options : df(default) for data frame or raw for unparsed results.') 
+            return output
+        except ValueError:
+            pass
     else:
-        raise ParametersError ('No data available for the provided parameters.')
-    if output_type == None or output_type =='df':        
-        output = maindf
-    elif output_type == 'raw':        
-        output = webResults
-    else:      
-        raise ParametersError ('output_type options : df(default) for data frame or raw for unparsed results.') 
-    return output
-
+        return ''  
